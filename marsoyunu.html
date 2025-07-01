@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HexaSphere Kolonisi: Araştırma Sınırı</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+        }
+    }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-glow: #ffb86c; /* Amber Glow */
+            --dark-bg: #1a0f0a;
+            --panel-bg: rgba(46, 26, 17, 0.85);
+            --border-color: rgba(255, 184, 108, 0.5);
+            --text-color: #f8f8f2;
+            --text-highlight: #ffb86c;
+        }
+        body { font-family: 'Orbitron', sans-serif; background: var(--dark-bg); color: var(--text-color); overflow: hidden; }
+        #game-container { width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; }
+        .ui-panel { background-color: var(--panel-bg); border: 1px solid var(--border-color); backdrop-filter: blur(10px); border-radius: 4px; box-shadow: 0 0 15px rgba(255, 184, 108, 0.2), inset 0 0 8px rgba(255, 184, 108, 0.1); animation: fadeInPanel 0.5s ease-out; }
+        @keyframes fadeInPanel { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .build-btn, .research-btn { background-color: transparent; color: var(--text-highlight); border: 1px solid var(--border-color); transition: all 0.3s ease; padding: 8px; border-radius: 4px; }
+        .build-btn:not(:disabled):hover, .research-btn:not(:disabled):hover { background-color: var(--primary-glow); color: var(--dark-bg); box-shadow: 0 2px 15px rgba(255, 184, 108, 0.4); }
+        .build-btn:disabled, .research-btn:disabled { border-color: rgba(100, 80, 70, 0.5); color: rgba(150, 130, 120, 0.7); cursor: not-allowed; background-color: rgba(50, 30, 20, 0.3); }
+        .log-message { animation: slideInLeft 0.5s ease-out; padding: 2px 0; border-bottom: 1px solid rgba(255, 184, 108, 0.08); }
+        @keyframes slideInLeft { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        #dust-storm-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(148, 93, 65, 0.7); backdrop-filter: blur(5px); z-index: 999; pointer-events: none; opacity: 0; transition: opacity 5s ease-in-out; }
+        .storage-bar { background-color: #444; border-radius: 2px; height: 4px; overflow: hidden; }
+        .storage-bar-fill { background-color: var(--primary-glow); height: 100%; transition: width 0.5s ease; }
+    </style>
+</head>
+<body class="select-none">
+
+    <div id="game-container"></div>
+    <div id="dust-storm-overlay"></div>
+
+    <!-- UI Panelleri -->
+    <div id="resource-panel" class="ui-panel absolute top-4 left-4 right-4 p-2 grid grid-cols-3 md:grid-cols-6 gap-2 text-sm md:text-base">
+        <div id="energy" class="p-2 rounded flex flex-col items-center"><div class="flex items-center gap-1"><svg class="w-5 h-5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg><span id="energy-value"></span></div><div class="storage-bar w-full mt-1"><div id="energy-bar" class="storage-bar-fill"></div></div></div>
+        <div id="minerals" class="p-2 rounded flex flex-col items-center"><div class="flex items-center gap-1"><svg class="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M20.55 5.22..."></path></svg><span id="minerals-value"></span></div><div class="storage-bar w-full mt-1"><div id="minerals-bar" class="storage-bar-fill"></div></div></div>
+        <div id="biomass" class="p-2 rounded flex flex-col items-center"><div class="flex items-center gap-1"><svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path d="M18.36 5.64..."></path></svg><span id="biomass-value"></span></div><div class="storage-bar w-full mt-1"><div id="biomass-bar" class="storage-bar-fill"></div></div></div>
+        <div id="water" class="p-2 rounded flex flex-col items-center"><div class="flex items-center gap-1"><svg class="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM8 12c0-2.21 1.79-4 4-4s4 1.79 4 4-1.79 4-4 4-4-1.79-4-4z"/></svg><span id="water-value"></span></div><div class="storage-bar w-full mt-1"><div id="water-bar" class="storage-bar-fill"></div></div></div>
+        <div id="population" class="p-2 rounded flex flex-col items-center"><div class="flex items-center gap-1"><svg class="w-5 h-5 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 20h5v-2..."></path></svg><span id="population-value"></span></div></div>
+        <div id="research" class="p-2 rounded flex flex-col items-center"><div class="flex items-center gap-1"><svg class="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-2 16h-2v-2h2v2zm-2-4h-2v-2h2v2zm0-4H8V8h2v2zm4 4h-2v-2h2v2zm0-4h-2v-2h2v2zm2-2V9h-2V7h2V5l2 2-2 2z"/></svg><span id="research-value"></span></div><button id="open-research-btn" class="text-xs mt-1">Ar-Ge</button></div>
+    </div>
+    <div id="build-panel" class="ui-panel absolute bottom-4 left-4 p-4 w-64 hidden"><h3 class="text-lg font-bold mb-4 text-amber-300">İnşa Modu</h3><div id="build-buttons-container" class="space-y-2"></div><button id="cancel-build" class="mt-4 w-full p-2 rounded-md border border-red-400 text-red-400 hover:bg-red-400 hover:text-white transition-colors">İptal</button></div>
+    <div id="log-panel" class="ui-panel absolute bottom-4 right-4 p-3 w-80 h-48 overflow-y-auto text-sm"><h4 class="font-bold text-amber-400 mb-2 border-b border-amber-700 pb-1">Koloni Günlüğü</h4><div id="log-content"></div></div>
+    <div id="tile-info-panel" class="ui-panel absolute top-1/2 -translate-y-1/2 left-4 p-4 w-64 hidden"><h3 id="tile-type" class="text-lg font-bold mb-2 text-amber-300"></h3><p id="tile-desc" class="text-xs mb-4"></p><button id="open-build-menu" class="build-btn w-full">Bina İnşa Et</button><button id="upgrade-building-btn" class="build-btn w-full mt-2 hidden">Yükselt</button></div>
+    <div id="research-panel" class="ui-panel absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 p-6 w-96 hidden z-10"><h3 class="text-xl font-bold mb-4 text-amber-300">Araştırma & Geliştirme</h3><div id="research-items-container" class="space-y-3"></div><button id="close-research-btn" class="mt-4 w-full p-2 rounded-md border border-red-400 text-red-400 hover:bg-red-400 hover:text-white transition-colors">Kapat</button></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- GAME STATE & CONSTANTS ---
+        const GameState = {
+            resources: { energy: 100, minerals: 50, biomass: 20, water: 50 },
+            researchPoints: 0,
+            storage: { energy: 500, minerals: 500, biomass: 500, water: 500 },
+            tech: {
+                advancedSolar: { name: "Gelişmiş Güneş Panelleri", unlocked: false, cost: 100, desc: "Panellerin verimini %50 artırır." },
+                storageTech: { name: "Genişletilmiş Depolama", unlocked: false, cost: 50, desc: "Depo binasının kilidini açar." },
+            },
+            population: { current: 5, capacity: 10 },
+            buildings: [],
+            selectedTile: null,
+            time: 0,
+            event: { type: 'none', duration: 0 },
+        };
+
+        const BUILDING_SPECS = {
+            'solar': { name: 'Güneş Paneli', cost: { minerals: 50 }, production: { energy: 2 }, upkeep: { energy: 0.1 }, requiresTech: null },
+            'solar_adv': { name: 'Gelişmiş Güneş Paneli', cost: { minerals: 75, energy: 25 }, production: { energy: 4 }, upkeep: { energy: 0.2 }, requiresTech: 'advancedSolar' },
+            'mine': { name: 'Maden', cost: { energy: 20, biomass: 10 }, production: { minerals: 1 }, upkeep: { energy: 0.5 }, requiresTech: null },
+            'biodome': { name: 'Biyokubbe', cost: { minerals: 30, energy: 20 }, production: { biomass: 0.5 }, capacity_increase: { population: 10 }, upkeep: { energy: 0.3, water: 0.2 }, requiresTech: null },
+            'waterExtractor': { name: 'Su Çıkarıcı', cost: { minerals: 40, energy: 30 }, production: { water: 1 }, upkeep: { energy: 1 }, requiresTech: null, requiresTile: 'Ice Deposit' },
+            'lab': { name: 'Araştırma Lab.', cost: { minerals: 100, water: 20 }, production: { researchPoints: 0.5 }, upkeep: { energy: 2 }, requiresTech: null },
+            'depot': { name: 'Depo', cost: { minerals: 80 }, capacity_increase: { energy: 1000, minerals: 1000, biomass: 1000, water: 1000 }, upkeep: { energy: 0.2 }, requiresTech: 'storageTech' }
+        };
+
+        const TILE_TYPES = { PLAIN: "Boş Arazi", ICE: "Buz Yatağı" };
+
+        const ui = {
+            energy: document.getElementById('energy-value'), minerals: document.getElementById('minerals-value'), biomass: document.getElementById('biomass-value'), water: document.getElementById('water-value'), population: document.getElementById('population-value'), research: document.getElementById('research-value'),
+            energyBar: document.getElementById('energy-bar'), mineralsBar: document.getElementById('minerals-bar'), biomassBar: document.getElementById('biomass-bar'), waterBar: document.getElementById('water-bar'),
+            buildPanel: document.getElementById('build-panel'), buildButtonsContainer: document.getElementById('build-buttons-container'), cancelBuildBtn: document.getElementById('cancel-build'),
+            tileInfoPanel: document.getElementById('tile-info-panel'), tileType: document.getElementById('tile-type'), tileDesc: document.getElementById('tile-desc'), openBuildBtn: document.getElementById('open-build-menu'), upgradeBtn: document.getElementById('upgrade-building-btn'),
+            researchPanel: document.getElementById('research-panel'), researchItemsContainer: document.getElementById('research-items-container'), openResearchBtn: document.getElementById('open-research-btn'), closeResearchBtn: document.getElementById('close-research-btn'),
+            logContent: document.getElementById('log-content'), dustStormOverlay: document.getElementById('dust-storm-overlay'),
+        };
+
+        // --- 3D SCENE & VISUALS (Mars Theme) ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x1a0f0a);
+        document.getElementById('game-container').appendChild(renderer.domElement);
+        
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.7, 0.5, 0.1);
+        composer.addPass(bloomPass);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.maxPolarAngle = Math.PI / 2.2;
+        controls.minDistance = 10;
+        controls.maxDistance = 60;
+        controls.enableDamping = true;
+
+        scene.fog = new THREE.Fog(0x945d41, 20, 150);
+        scene.add(new THREE.HemisphereLight(0xffeeb1, 0x442a1e, 1.5));
+        scene.add(new THREE.DirectionalLight(0xffeeb1, 1.0).position.set(-20, 30, 10));
+
+        // Background (Stars, Dust)
+        const starGeo = new THREE.BufferGeometry();
+        const starVertices = [];
+        for (let i = 0; i < 10000; i++) starVertices.push(THREE.MathUtils.randFloatSpread(2000), THREE.MathUtils.randFloatSpread(2000), THREE.MathUtils.randFloatSpread(2000));
+        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+        scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.7 })));
+        const dustGeo = new THREE.BufferGeometry();
+        const dustVertices = [];
+        for (let i = 0; i < 5000; i++) dustVertices.push(THREE.MathUtils.randFloatSpread(300), THREE.MathUtils.randFloat(0, 50), THREE.MathUtils.randFloatSpread(300));
+        dustGeo.setAttribute('position', new THREE.Float32BufferAttribute(dustVertices, 3));
+        const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffd3b8, size: 0.1, transparent: true, opacity: 0.2 }));
+        scene.add(dust);
+
+        // Procedural Textures
+        function createTexture(baseColorHex, detailCount) {
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256;
+            const context = canvas.getContext('2d');
+            context.fillStyle = baseColorHex; context.fillRect(0, 0, 256, 256);
+            for (let i = 0; i < detailCount; i++) {
+                const x = Math.random() * 256; const y = Math.random() * 256; const radius = Math.random() * 1.5;
+                context.fillStyle = `rgba(255,255,255,${Math.random() * 0.1})`;
+                context.beginPath(); context.arc(x, y, radius, 0, Math.PI * 2); context.fill();
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+        const marsTexture = createTexture('#7f4a2d', 10000);
+        const iceTexture = createTexture('#a0c0ff', 5000);
+        
+        // Hex Grid Generation
+        const hexGrid = new Map();
+        const hexGroup = new THREE.Group();
+        const HEX_RADIUS = 1; const gridRadius = 10;
+        for (let q = -gridRadius; q <= gridRadius; q++) {
+            for (let r = -gridRadius; r <= gridRadius; r++) {
+                if (Math.abs(q + r) > gridRadius) continue;
+                const isIce = Math.random() < 0.1; // %10 chance for ice
+                const hexGeo = new THREE.CylinderGeometry(HEX_RADIUS * 0.95, HEX_RADIUS * 0.95, 0.5, 6);
+                const hexMat = new THREE.MeshStandardMaterial({ map: isIce ? iceTexture : marsTexture, roughness: 0.8, metalness: 0.1 });
+                const hex = new THREE.Mesh(hexGeo, hexMat);
+                hex.position.set(HEX_RADIUS * 1.5 * q, 0, HEX_RADIUS * Math.sqrt(3) * (r + q/2));
+                const tileId = `${q},${r}`;
+                hex.userData = { id: tileId, building: null, type: isIce ? TILE_TYPES.ICE : TILE_TYPES.PLAIN };
+                hexGrid.set(tileId, hex);
+                hexGroup.add(hex);
+            }
+        }
+        scene.add(hexGroup);
+        const basePlate = new THREE.Mesh(new THREE.CylinderGeometry(gridRadius * 1.6, gridRadius*1.6, 2, 32), new THREE.MeshStandardMaterial({color: '#5c3a21'}));
+        basePlate.position.y = -1.25; scene.add(basePlate);
+        
+        const highlightMesh = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.07, 8, 48), new THREE.MeshBasicMaterial({ color: 0xffb86c, toneMapped: false }));
+        highlightMesh.rotation.x = -Math.PI / 2; highlightMesh.position.y = 0.26; highlightMesh.visible = false;
+        scene.add(highlightMesh);
+        camera.position.set(0, 25, 22);
+
+        // Raycasting
+        const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let intersectedObject = null;
+        let rotatingObjects = [];
+
+        // --- GAME LOGIC ---
+        function gameLoop() {
+            GameState.time++;
+            let netProduction = { energy: 0, minerals: 0, biomass: 0, water: 0, researchPoints: 0 };
+            
+            // 1. Upkeep and Production
+            GameState.buildings.forEach(b => {
+                const spec = BUILDING_SPECS[b.type];
+                if(spec.upkeep) for(const res in spec.upkeep) GameState.resources[res] -= spec.upkeep[res];
+                if(spec.production) {
+                    for(const res in spec.production) {
+                        let productionRate = spec.production[res];
+                        if (b.type === 'solar' && GameState.event.type === 'dust_storm') productionRate = 0;
+                        netProduction[res] += productionRate;
+                    }
+                }
+            });
+
+            // 2. Add net production to resources, respecting storage caps
+            for(const res in netProduction) {
+                if(GameState.resources.hasOwnProperty(res)) {
+                    GameState.resources[res] = Math.min(GameState.resources[res] + netProduction[res], GameState.storage[res]);
+                } else if(res === 'researchPoints') {
+                    GameState.researchPoints += netProduction.researchPoints;
+                }
+            }
+
+            // 3. Population Growth
+            if (GameState.population.current < GameState.population.capacity && GameState.resources.biomass > GameState.population.current && GameState.resources.water > GameState.population.current * 0.5) {
+                if(Math.random() < 0.015) { GameState.population.current++; addLog('Yeni bir kolonist katıldı!', 'success'); }
+            }
+
+            // 4. Events
+            if(GameState.event.duration > 0) {
+                GameState.event.duration--;
+                if(GameState.event.duration <= 0) {
+                    GameState.event.type = 'none';
+                    if(ui.dustStormOverlay.style.opacity === "1") addLog('Toz fırtınası dindi. Güneş panelleri tekrar çevrimiçi.', 'success');
+                    ui.dustStormOverlay.style.opacity = 0;
+                }
+            } else if (Math.random() < 0.01 && GameState.time > 100) { // Start events after a while
+                GameState.event.type = 'dust_storm';
+                GameState.event.duration = Math.floor(Math.random() * 20) + 10; // 10-30 seconds
+                addLog('Toz fırtınası yaklaşıyor! Güneş panelleri etkilenecek!', 'danger');
+                ui.dustStormOverlay.style.opacity = 1;
+            }
+
+            updateUI();
+        }
+        
+        // --- UI & Interaction Logic ---
+        function updateUI() {
+            // Resources
+            Object.keys(GameState.resources).forEach(res => {
+                ui[res].textContent = `${Math.floor(GameState.resources[res])}/${GameState.storage[res]}`;
+                ui[res + 'Bar'].style.width = `${(GameState.resources[res] / GameState.storage[res]) * 100}%`;
+            });
+            ui.population.textContent = `${GameState.population.current}/${GameState.population.capacity}`;
+            ui.research.textContent = Math.floor(GameState.researchPoints);
+        }
+
+        function populateBuildMenu() {
+            ui.buildButtonsContainer.innerHTML = '';
+            for(const type in BUILDING_SPECS) {
+                const spec = BUILDING_SPECS[type];
+                if (type.includes('_adv')) continue; // Don't show advanced versions directly
+                if (spec.requiresTech && !GameState.tech[spec.requiresTech].unlocked) continue;
+                
+                const btn = document.createElement('button');
+                btn.id = `build-${type}`;
+                btn.className = 'build-btn w-full text-left';
+                btn.textContent = `${spec.name} (${Object.entries(spec.cost).map(([k,v]) => `${v} ${k.slice(0,1).toUpperCase()}`).join(', ')})`;
+                btn.onclick = () => buildBuilding(type);
+                ui.buildButtonsContainer.appendChild(btn);
+            }
+        }
+        
+        function selectTile(tile) {
+            if (GameState.selectedTile && GameState.selectedTile.scale) GameState.selectedTile.scale.y = 1;
+            GameState.selectedTile = tile;
+            highlightMesh.position.set(tile.position.x, 0.26, tile.position.z);
+            highlightMesh.visible = true;
+            showTileInfo(tile);
+        }
+
+        function showTileInfo(tile) {
+            ui.tileInfoPanel.classList.remove('hidden');
+            const { building, type } = tile.userData;
+            ui.tileType.textContent = building ? BUILDING_SPECS[building.type].name : type;
+            ui.tileDesc.textContent = building ? `Tip: ${building.type}` : "İnşaat için uygun bölge.";
+            ui.openBuildBtn.classList.toggle('hidden', !!building);
+            ui.upgradeBtn.classList.add('hidden');
+            if (building && building.type === 'solar' && GameState.tech.advancedSolar.unlocked) {
+                ui.upgradeBtn.classList.remove('hidden');
+            }
+        }
+
+        function buildBuilding(type) {
+            const tile = GameState.selectedTile;
+            if (!tile || tile.userData.building) return;
+            
+            const spec = BUILDING_SPECS[type];
+            if (spec.requiresTile && tile.userData.type !== spec.requiresTile.replace(' ', '')) {
+                addLog(`Bu bina sadece ${spec.requiresTile} üzerine inşa edilebilir.`, 'warning'); return;
+            }
+
+            let canAfford = true;
+            for (const res in spec.cost) if (GameState.resources[res] < spec.cost[res]) canAfford = false;
+            
+            if (canAfford) {
+                for (const res in spec.cost) GameState.resources[res] -= spec.cost[res];
+                
+                const newBuilding = { id: `bld_${Date.now()}`, type: type, tileId: tile.userData.id };
+                if (spec.capacity_increase) {
+                    if (spec.capacity_increase.population) GameState.population.capacity += spec.capacity_increase.population;
+                    else for (const res in spec.capacity_increase) GameState.storage[res] += spec.capacity_increase[res];
+                }
+                
+                const buildingMesh = createBuildingMesh(type);
+                buildingMesh.position.copy(tile.position);
+                buildingMesh.position.y = 0.25;
+                scene.add(buildingMesh);
+                newBuilding.mesh = buildingMesh;
+
+                GameState.buildings.push(newBuilding);
+                tile.userData.building = newBuilding;
+                
+                addLog(`${spec.name} inşa edildi.`, 'success');
+                showTileInfo(tile);
+                ui.buildPanel.classList.add('hidden');
+            } else { addLog('Yetersiz kaynak!', 'warning'); }
+        }
+
+        function upgradeBuilding() {
+            const tile = GameState.selectedTile;
+            if (!tile || !tile.userData.building || tile.userData.building.type !== 'solar') return;
+            
+            const spec = BUILDING_SPECS.solar_adv;
+            let canAfford = true;
+            for (const res in spec.cost) if (GameState.resources[res] < spec.cost[res]) canAfford = false;
+
+            if (canAfford) {
+                for (const res in spec.cost) GameState.resources[res] -= spec.cost[res];
+                
+                const buildingIndex = GameState.buildings.findIndex(b => b.id === tile.userData.building.id);
+                const oldBuilding = GameState.buildings[buildingIndex];
+                
+                removeBuildingMesh(oldBuilding.mesh);
+                const newMesh = createBuildingMesh('solar_adv');
+                newMesh.position.copy(tile.position);
+                newMesh.position.y = 0.25;
+                scene.add(newMesh);
+
+                const upgradedBuilding = { ...oldBuilding, type: 'solar_adv', mesh: newMesh };
+                GameState.buildings[buildingIndex] = upgradedBuilding;
+                tile.userData.building = upgradedBuilding;
+
+                addLog('Güneş Paneli, Gelişmiş modele yükseltildi!', 'success');
+                showTileInfo(tile);
+            } else { addLog('Yükseltme için yetersiz kaynak!', 'warning'); }
+        }
+
+        function populateResearchMenu() {
+            ui.researchItemsContainer.innerHTML = '';
+            for(const key in GameState.tech) {
+                const tech = GameState.tech[key];
+                const item = document.createElement('div');
+                item.className = 'p-2 border border-amber-800 rounded';
+                let status;
+                if (tech.unlocked) {
+                    status = `<span class="text-green-400">ARAŞTIRILDI</span>`;
+                } else {
+                    status = `<button id="research-${key}" class="research-btn text-xs float-right">Araştır (${tech.cost} AP)</button>`;
+                }
+                item.innerHTML = `
+                    <h4 class="font-bold text-amber-300">${tech.name}</h4>
+                    <p class="text-xs text-gray-300 my-1">${tech.desc}</p>
+                    ${status}
+                `;
+                ui.researchItemsContainer.appendChild(item);
+                if (!tech.unlocked) {
+                    const btn = document.getElementById(`research-${key}`);
+                    btn.disabled = GameState.researchPoints < tech.cost;
+                    btn.onclick = () => researchTech(key);
+                }
+            }
+        }
+        function researchTech(key) {
+            const tech = GameState.tech[key];
+            if (GameState.researchPoints >= tech.cost) {
+                GameState.researchPoints -= tech.cost;
+                tech.unlocked = true;
+                addLog(`${tech.name} teknolojisi araştırıldı!`, 'success');
+                populateResearchMenu();
+            }
+        }
+        
+        // --- EVENT LISTENERS ---
+        ui.openBuildBtn.addEventListener('click', () => { populateBuildMenu(); ui.buildPanel.classList.remove('hidden'); ui.tileInfoPanel.classList.add('hidden'); });
+        ui.cancelBuildBtn.addEventListener('click', () => { ui.buildPanel.classList.add('hidden'); if (GameState.selectedTile) ui.tileInfoPanel.classList.remove('hidden'); });
+        ui.upgradeBtn.addEventListener('click', upgradeBuilding);
+        ui.openResearchBtn.addEventListener('click', () => { populateResearchMenu(); ui.researchPanel.classList.remove('hidden'); });
+        ui.closeResearchBtn.addEventListener('click', () => { ui.researchPanel.classList.add('hidden'); });
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight); });
+        window.addEventListener('mousemove', (event) => { mouse.x = (event.clientX / window.innerWidth) * 2 - 1; mouse.y = -(event.clientY / window.innerHeight) * 2 + 1; });
+        window.addEventListener('click', () => { if (intersectedObject) selectTile(intersectedObject); });
+
+        // --- MESH CREATION & ANIMATION ---
+        function createBuildingMesh(type) {
+            const group = new THREE.Group();
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6, roughness: 0.4 });
+            switch (type) {
+                case 'solar': case 'solar_adv':
+                    const panelColor = type === 'solar_adv' ? 0x6688cc : 0x334466;
+                    const panel = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.1, 0.6), new THREE.MeshStandardMaterial({ color: panelColor, emissive: panelColor, metalness: 0.9 }));
+                    panel.position.y = 0.5; panel.rotation.x = 0.5;
+                    group.add(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1, 8), baseMat), panel); break;
+                case 'mine':
+                    const radar = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.1, 0.2, 6), new THREE.MeshBasicMaterial({ color: 0xffb86c, toneMapped: false }));
+                    radar.position.y = 0.6; group.add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 1, 8), baseMat), radar); rotatingObjects.push(radar); break;
+                case 'biodome':
+                    group.add(new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xaaffaa, transparent: true, opacity: 0.3, emissive: 0x339966 }))); break;
+                case 'waterExtractor':
+                    const drill = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.5, 6), baseMat);
+                    drill.position.y = -0.5; group.add(new THREE.Mesh(new THREE.BoxGeometry(1, 0.5, 1), baseMat), drill); rotatingObjects.push(drill); break;
+                case 'lab':
+                    const antenna = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffb86c, toneMapped: false }));
+                    antenna.position.y = 0.8; group.add(new THREE.Mesh(new THREE.BoxGeometry(1, 0.8, 1.2), baseMat), antenna); break;
+                case 'depot':
+                    group.add(new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 1.2, 12), baseMat)); break;
+            }
+            return group;
+        }
+        function removeBuildingMesh(meshGroup) { rotatingObjects = rotatingObjects.filter(o => !meshGroup.children.includes(o)); scene.remove(meshGroup); meshGroup.traverse(c => {if(c.isMesh){c.geometry.dispose(); c.material.dispose();}}); }
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate); const delta = clock.getDelta();
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(hexGroup.children);
+            if(intersects.length > 0) { if (intersectedObject !== intersects[0].object) { if (intersectedObject) intersectedObject.scale.y = 1; intersectedObject = intersects[0].object; intersectedObject.scale.y = 1.2; } }
+            else { if (intersectedObject) intersectedObject.scale.y = 1; intersectedObject = null; }
+            if (highlightMesh.visible) highlightMesh.rotation.z += delta * 0.5;
+            rotatingObjects.forEach(obj => { obj.rotation.y += delta * 2; });
+            dust.position.x = Math.sin(clock.getElapsedTime()*0.1)*5; dust.position.z = Math.cos(clock.getElapsedTime()*0.1)*5;
+            controls.update(); composer.render(delta);
+        }
+        function addLog(message, type = 'info') {
+            const colors = { info: 'text-gray-200', success: 'text-green-400', warning: 'text-yellow-400', danger: 'text-red-400' };
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-message ${colors[type]}`;
+            logEntry.innerHTML = `<span class="text-amber-500 mr-2">[${new Date().toLocaleTimeString()}]</span> ${message}`;
+            ui.logContent.prepend(logEntry);
+            if (ui.logContent.children.length > 30) ui.logContent.lastChild.remove();
+        }
+        
+        // --- GAME START ---
+        addLog('Araştırma Sınırı sistemleri yüklendi. Mars\'ta yeni bir gün başlıyor.', 'success');
+        updateUI(); setInterval(gameLoop, 1000); animate();
+    </script>
+</body>
+</html>
