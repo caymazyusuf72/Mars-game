@@ -33,11 +33,4 @@ This project is written in **HTML**, **CSS**, **JavaScript**, **PHP**, and power
 
 ---
 
-## 🛠️ How to Run
 
-```bash
-# 1. Clone the repo
-git clone https://github.com/yourusername/mars-strategy-game.git
-
-# 2. Start a PHP server (from project root)
-php -S localhost:8000
